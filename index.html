@@ -2,8 +2,8 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR.js Camera Fix</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AR.js with Scanner</title>
     
     <!-- Load libraries in the correct order -->
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
@@ -12,26 +12,98 @@
     <style>
         body {
             margin: 0;
+            padding: 0;
             overflow: hidden;
             position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
+            -webkit-user-select: none;
+            user-select: none;
         }
         
-        .camera-feedback {
+        .a-enter-vr, .a-orientation-modal {
+            display: none !important;
+        }
+        
+        #arjs-video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            z-index: -1 !important;
+        }
+        
+        /* Status display */
+        #status-display {
             position: fixed;
             top: 10px;
-            left: 10px;
+            left: 50%;
+            transform: translateX(-50%);
             background-color: rgba(0, 0, 0, 0.7);
             color: white;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 10px 15px;
+            border-radius: 20px;
             font-family: Arial, sans-serif;
             z-index: 999;
-            display: none;
+            text-align: center;
+            width: auto;
+            max-width: 80%;
         }
         
-        .controls {
+        /* Scanner overlay */
+        #scanner-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 998;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #scanner-frame {
+            width: 80vw;
+            height: 80vw;
+            max-width: 80vh;
+            max-height: 80vh;
+            border: 2px solid rgba(50, 205, 50, 0.8);
+            border-radius: 20px;
+            position: relative;
+            box-shadow: 0 0 0 rgba(50, 205, 50, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        #scanner-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background-color: rgba(50, 205, 50, 0.8);
+            top: 0;
+            left: 0;
+            animation: scan 2s infinite;
+        }
+        
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(50, 205, 50, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(50, 205, 50, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(50, 205, 50, 0); }
+        }
+        
+        /* Controls */
+        #controls {
             position: fixed;
             bottom: 20px;
             left: 0;
@@ -41,41 +113,115 @@
             z-index: 999;
         }
         
-        .controls button {
+        #controls button {
             margin: 0 10px;
-            padding: 10px 20px;
+            padding: 12px 20px;
             background-color: rgba(255, 255, 255, 0.8);
             border: none;
-            border-radius: 5px;
+            border-radius: 30px;
             font-size: 16px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Success animation */
+        .success-animation {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px;
+            height: 100px;
+            background-color: rgba(50, 205, 50, 0.7);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: success 1s forwards;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .success-animation:after {
+            content: '✓';
+            font-size: 60px;
+            color: white;
+        }
+        
+        @keyframes success {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+            70% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
         }
     </style>
 </head>
 <body>
-    <!-- Camera status feedback -->
-    <div id="camera-feedback" class="camera-feedback">Camera status: Initializing...</div>
+    <!-- Status display -->
+    <div id="status-display">Tap "Start AR" to begin</div>
     
-    <!-- Controls -->
-    <div class="controls">
-        <button id="request-camera">Start Camera</button>
-        <button id="reload-page" style="display: none;">Reload Page</button>
+    <!-- Scanner overlay (initially hidden) -->
+    <div id="scanner-overlay" style="display: none;">
+        <div id="scanner-frame">
+            <div id="scanner-line"></div>
+        </div>
     </div>
     
-    <!-- A-Frame scene (initially hidden) -->
-    <div id="scene-container" style="display: none;">
+    <!-- Controls -->
+    <div id="controls">
+        <button id="start-button">Start AR</button>
+        <button id="flip-button" style="display: none;">Flip Camera</button>
+    </div>
+    
+    <!-- Hidden AR scene (will be displayed after camera starts) -->
+    <div id="ar-container" style="display: none; width: 100%; height: 100%;">
         <a-scene
             embedded
-            arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix;"
+            arjs="sourceType: webcam; videoTextureWidth: 1280; videoTextureHeight: 960; detectionMode: mono_and_matrix; matrixCodeType: 3x3; debugUIEnabled: false;"
             vr-mode-ui="enabled: false"
             renderer="antialias: true; alpha: true; precision: mediump;"
             id="ar-scene"
         >
-            <!-- Use a basic marker pattern -->
-            <a-marker type="pattern" url="marker.zft" id="main-marker">
-                <!-- Simple test object to confirm marker detection -->
-                <a-sphere position="0 0.5 0" radius="0.5" color="#FF0000" opacity="0.8"></a-sphere>
-                
-                <!-- This is where fireworks will be added once camera works -->
+            <!-- Custom marker detection indicator component -->
+            <script>
+                AFRAME.registerComponent('marker-detector', {
+                    init: function() {
+                        this.markerFound = false;
+                        
+                        this.el.addEventListener('markerFound', () => {
+                            if (!this.markerFound) {
+                                this.markerFound = true;
+                                document.getElementById('status-display').textContent = 'Marker detected!';
+                                document.getElementById('scanner-overlay').style.display = 'none';
+                                
+                                // Show success animation
+                                const successAnim = document.createElement('div');
+                                successAnim.className = 'success-animation';
+                                document.body.appendChild(successAnim);
+                                
+                                // Remove after animation completes
+                                setTimeout(() => {
+                                    document.body.removeChild(successAnim);
+                                }, 1500);
+                                
+                                // Start fireworks
+                                startFireworks();
+                            }
+                        });
+                        
+                        this.el.addEventListener('markerLost', () => {
+                            if (this.markerFound) {
+                                this.markerFound = false;
+                                document.getElementById('status-display').textContent = 'Marker lost. Point camera at image.';
+                                document.getElementById('scanner-overlay').style.display = 'flex';
+                            }
+                        });
+                    }
+                });
+            </script>
+            
+            <!-- Use your ZFT marker -->
+            <a-marker type="pattern" url="marker.zft" marker-detector>
+                <!-- Fireworks container -->
                 <a-entity id="fireworks-container" position="0 0 0"></a-entity>
             </a-marker>
             
@@ -86,76 +232,193 @@
     
     <script>
         // Elements
-        const cameraFeedback = document.getElementById('camera-feedback');
-        const requestCameraBtn = document.getElementById('request-camera');
-        const reloadPageBtn = document.getElementById('reload-page');
-        const sceneContainer = document.getElementById('scene-container');
+        const statusDisplay = document.getElementById('status-display');
+        const startButton = document.getElementById('start-button');
+        const flipButton = document.getElementById('flip-button');
+        const arContainer = document.getElementById('ar-container');
+        const scannerOverlay = document.getElementById('scanner-overlay');
         
-        // Show camera feedback
-        function showCameraStatus(message, isError = false) {
-            cameraFeedback.style.display = 'block';
-            cameraFeedback.textContent = 'Camera status: ' + message;
+        // Camera settings
+        let facingMode = 'environment'; // Start with rear camera
+        
+        // Initialize AR
+        function startAR() {
+            statusDisplay.textContent = 'Requesting camera permission...';
             
-            if (isError) {
-                cameraFeedback.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
-                reloadPageBtn.style.display = 'inline-block';
+            // First request camera permission explicitly
+            navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: facingMode,
+                    width: { ideal: window.innerWidth },
+                    height: { ideal: window.innerHeight }
+                } 
+            })
+            .then(function(stream) {
+                // Permission granted, stop test stream
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Show AR scene and scanner
+                arContainer.style.display = 'block';
+                scannerOverlay.style.display = 'flex';
+                statusDisplay.textContent = 'Scanning for marker...';
+                
+                // Hide start button, show flip button
+                startButton.style.display = 'none';
+                flipButton.style.display = 'inline-block';
+                
+                // Fix camera view (may need to wait for AR.js to initialize)
+                setTimeout(fixCameraView, 500);
+            })
+            .catch(function(err) {
+                statusDisplay.textContent = 'Camera error: ' + err.message;
+                console.error('Camera error:', err);
+            });
+        }
+        
+        // Fix camera view to prevent cutoff
+        function fixCameraView() {
+            const video = document.querySelector('#arjs-video');
+            if (video) {
+                // Ensure video takes full width and height
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.style.objectFit = 'cover';
+                video.style.position = 'absolute';
+                video.style.top = '0';
+                video.style.left = '0';
+                video.style.zIndex = '-1';
             } else {
-                cameraFeedback.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                // AR.js video might not be ready yet, try again
+                setTimeout(fixCameraView, 200);
             }
         }
         
-        // Initialize AR experience
-        function initAR() {
-            showCameraStatus('Requesting camera permission...');
+        // Flip camera
+        function flipCamera() {
+            facingMode = facingMode === 'environment' ? 'user' : 'environment';
+            statusDisplay.textContent = 'Switching camera...';
             
-            // First, explicitly request camera permission
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(function(stream) {
-                    // Permission granted, stop the test stream
-                    stream.getTracks().forEach(track => track.stop());
-                    
-                    // Show the AR scene
-                    sceneContainer.style.display = 'block';
-                    showCameraStatus('Camera ready. Point at marker.');
-                    
-                    // Listen for marker events
-                    const marker = document.getElementById('main-marker');
-                    
-                    marker.addEventListener('markerFound', function() {
-                        showCameraStatus('Marker detected!');
-                        
-                        // Once marker is found, initialize fireworks
-                        // This is where we would call initFireworks() function
-                        // For now, just show status
-                    });
-                    
-                    marker.addEventListener('markerLost', function() {
-                        showCameraStatus('Marker lost. Point camera at image.');
-                    });
-                    
-                    // Hide the start button
-                    requestCameraBtn.style.display = 'none';
-                })
-                .catch(function(err) {
-                    showCameraStatus('Camera error: ' + err.message, true);
-                    console.error('Camera error:', err);
-                });
+            // Reload the page with a flag to use different camera
+            localStorage.setItem('camera-facing', facingMode);
+            window.location.reload();
+        }
+        
+        // Fireworks effects
+        function startFireworks() {
+            const container = document.getElementById('fireworks-container');
+            
+            // Create initial firework
+            createFirework(container);
+            
+            // Create fireworks at intervals
+            setInterval(() => {
+                createFirework(container);
+            }, 1500);
+        }
+        
+        function createFirework(container) {
+            // Create firework entity
+            const firework = document.createElement('a-entity');
+            
+            // Position in reflection area (adjust these values to match your image)
+            const x = (Math.random() - 0.5) * 1;
+            const y = -0.2 - Math.random() * 0.1;
+            const z = (Math.random() - 0.5) * 0.5;
+            
+            firework.setAttribute('position', `${x} ${y} ${z}`);
+            
+            // Random color
+            const colors = [
+                '#ff0000', '#ffaa00', '#ffff00', 
+                '#00ff00', '#00ffff', '#0099ff', '#ff00ff'
+            ];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            // Create particles
+            const particleCount = 20 + Math.floor(Math.random() * 30);
+            
+            for (let i = 0; i < particleCount; i++) {
+                createParticle(firework, color);
+            }
+            
+            // Add to container
+            container.appendChild(firework);
+            
+            // Remove after animation completes
+            setTimeout(() => {
+                if (firework.parentNode) {
+                    container.removeChild(firework);
+                }
+            }, 3000);
+        }
+        
+        function createParticle(parent, color) {
+            // Create particle
+            const particle = document.createElement('a-sphere');
+            
+            // Set properties
+            particle.setAttribute('radius', 0.02 + Math.random() * 0.01);
+            particle.setAttribute('color', color);
+            particle.setAttribute('material', 'shader: flat; transparent: true; opacity: 1.0');
+            
+            // Initial position
+            const initPos = { 
+                x: (Math.random() - 0.5) * 0.05,
+                y: (Math.random() - 0.5) * 0.05,
+                z: (Math.random() - 0.5) * 0.05
+            };
+            particle.setAttribute('position', `${initPos.x} ${initPos.y} ${initPos.z}`);
+            
+            // Final position (explosion)
+            const angle = Math.random() * Math.PI * 2;
+            const height = Math.random();
+            const distance = 0.3 + Math.random() * 0.5;
+            
+            const finalPos = {
+                x: Math.cos(angle) * distance,
+                y: Math.sin(angle) * distance * height,
+                z: Math.sin(angle) * distance
+            };
+            
+            // Animation: position
+            const posAnim = document.createElement('a-animation');
+            posAnim.setAttribute('attribute', 'position');
+            posAnim.setAttribute('to', `${finalPos.x} ${finalPos.y} ${finalPos.z}`);
+            posAnim.setAttribute('dur', 1000 + Math.random() * 1000);
+            posAnim.setAttribute('easing', 'ease-out');
+            
+            // Animation: opacity
+            const opacityAnim = document.createElement('a-animation');
+            opacityAnim.setAttribute('attribute', 'material.opacity');
+            opacityAnim.setAttribute('from', '1');
+            opacityAnim.setAttribute('to', '0');
+            opacityAnim.setAttribute('dur', 1000 + Math.random() * 1000);
+            opacityAnim.setAttribute('easing', 'ease-in');
+            
+            // Add animations
+            particle.appendChild(posAnim);
+            particle.appendChild(opacityAnim);
+            
+            // Add to parent
+            parent.appendChild(particle);
         }
         
         // Event listeners
-        requestCameraBtn.addEventListener('click', initAR);
+        startButton.addEventListener('click', startAR);
+        flipButton.addEventListener('click', flipCamera);
         
-        reloadPageBtn.addEventListener('click', function() {
-            location.reload();
+        // Check if we're reloading with a different camera setting
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedFacing = localStorage.getItem('camera-facing');
+            if (savedFacing) {
+                facingMode = savedFacing;
+                localStorage.removeItem('camera-facing');
+                startAR();
+            }
         });
         
-        // Function to add fireworks (will implement once camera works)
-        function initFireworks() {
-            const container = document.getElementById('fireworks-container');
-            
-            // Add fireworks code here
-            // For now, we're focusing on camera fix
-        }
+        // Fix for iOS Safari
+        window.addEventListener('touchstart', function() {}, false);
     </script>
 </body>
 </html>
