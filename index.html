@@ -69,23 +69,6 @@
             box-shadow: none;
         }
         
-        /* Lower left quadrant indicator (will be hidden in final view) */
-        #water-area-indicator {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 50%;
-            height: 50%;
-            border: 2px dashed rgba(0, 150, 255, 0.5);
-            border-radius: 0 0 0 8px;
-            background-color: rgba(0, 100, 255, 0.1);
-            transition: all 0.3s ease;
-        }
-        
-        #frame-overlay.transparent #water-area-indicator {
-            opacity: 0;
-        }
-        
         #instructions {
             padding: 15px;
             background-color: rgba(0, 0, 0, 0.6);
@@ -233,7 +216,6 @@
     <div id="overlay-container">
         <div id="frame-overlay" class="pulse">
             <div id="instructions">Position your framed picture within this square</div>
-            <div id="water-area-indicator"></div>
             <div class="corner-marker" id="top-left"></div>
             <div class="corner-marker" id="top-right"></div>
             <div class="corner-marker" id="bottom-left"></div>
