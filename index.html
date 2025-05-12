@@ -3,422 +3,629 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AR.js with Scanner</title>
-    
-    <!-- Load libraries in the correct order -->
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    
+    <title>3D-Locked Fireworks</title>
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
             overflow: hidden;
             position: fixed;
-            top: 0;
-            left: 0;
             width: 100%;
             height: 100%;
-            -webkit-user-select: none;
-            user-select: none;
+            background-color: #000;
         }
         
-        .a-enter-vr, .a-orientation-modal {
-            display: none !important;
-        }
-        
-        #arjs-video {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            z-index: -1 !important;
-        }
-        
-        /* Status display */
-        #status-display {
+        #camera-container {
             position: fixed;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 20px;
-            font-family: Arial, sans-serif;
-            z-index: 999;
-            text-align: center;
-            width: auto;
-            max-width: 80%;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
         }
         
-        /* Scanner overlay */
-        #scanner-overlay {
+        #camera-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #overlay-container {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             pointer-events: none;
-            z-index: 998;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            z-index: 5;
         }
         
-        #scanner-frame {
-            width: 80vw;
-            height: 80vw;
-            max-width: 80vh;
-            max-height: 80vh;
-            border: 2px solid rgba(50, 205, 50, 0.8);
-            border-radius: 20px;
-            position: relative;
-            box-shadow: 0 0 0 rgba(50, 205, 50, 0.4);
-            animation: pulse 2s infinite;
-        }
-        
-        #scanner-line {
+        #frame-overlay {
             position: absolute;
-            width: 100%;
-            height: 2px;
-            background-color: rgba(50, 205, 50, 0.8);
-            top: 0;
-            left: 0;
-            animation: scan 2s infinite;
-        }
-        
-        @keyframes scan {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
-        }
-        
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(50, 205, 50, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(50, 205, 50, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(50, 205, 50, 0); }
-        }
-        
-        /* Controls */
-        #controls {
-            position: fixed;
-            bottom: 20px;
-            left: 0;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            z-index: 999;
-        }
-        
-        #controls button {
-            margin: 0 10px;
-            padding: 12px 20px;
-            background-color: rgba(255, 255, 255, 0.8);
-            border: none;
-            border-radius: 30px;
-            font-size: 16px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        }
-        
-        /* Success animation */
-        .success-animation {
-            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 100px;
-            height: 100px;
-            background-color: rgba(50, 205, 50, 0.7);
-            border-radius: 50%;
+            border: 3px dashed rgba(255, 255, 255, 0.7);
+            width: 80%;
+            height: 60%;
+            border-radius: 10px;
+            box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.3);
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 1000;
-            animation: success 1s forwards;
-            opacity: 0;
-            pointer-events: none;
-        }
-        
-        .success-animation:after {
-            content: '✓';
-            font-size: 60px;
             color: white;
+            text-align: center;
         }
         
-        @keyframes success {
-            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-            70% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        #instructions {
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 8px;
+            max-width: 80%;
+            font-size: 16px;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #fireworks-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .corner-marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 255, 0, 0.8);
+            background-color: transparent;
+            z-index: 20;
+        }
+        
+        #top-left {
+            top: -10px;
+            left: -10px;
+            border-top-left-radius: 10px;
+            border-right: none;
+            border-bottom: none;
+        }
+        
+        #top-right {
+            top: -10px;
+            right: -10px;
+            border-top-right-radius: 10px;
+            border-left: none;
+            border-bottom: none;
+        }
+        
+        #bottom-left {
+            bottom: -10px;
+            left: -10px;
+            border-bottom-left-radius: 10px;
+            border-right: none;
+            border-top: none;
+        }
+        
+        #bottom-right {
+            bottom: -10px;
+            right: -10px;
+            border-bottom-right-radius: 10px;
+            border-left: none;
+            border-top: none;
+        }
+        
+        #controls {
+            position: fixed;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            z-index: 20;
+            pointer-events: auto;
+        }
+        
+        button {
+            padding: 12px 24px;
+            margin: 0 10px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+        }
+        
+        button:active {
+            transform: translateY(2px);
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+            }
+        }
+        
+        #status-text {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 16px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 30;
+            text-align: center;
+        }
+        
+        #debug-info {
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 16px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 30;
+            text-align: center;
+            display: none; /* Set to 'block' to show debug info */
         }
     </style>
 </head>
 <body>
-    <!-- Status display -->
-    <div id="status-display">Tap "Start AR" to begin</div>
+    <div id="status-text">Allow camera access to begin</div>
+    <div id="debug-info">Motion data will appear here</div>
     
-    <!-- Scanner overlay (initially hidden) -->
-    <div id="scanner-overlay" style="display: none;">
-        <div id="scanner-frame">
-            <div id="scanner-line"></div>
+    <div id="camera-container">
+        <video id="camera-feed" autoplay playsinline></video>
+    </div>
+    
+    <div id="overlay-container">
+        <div id="frame-overlay" class="pulse">
+            <div id="instructions">Position your framed picture within this box</div>
+            <div class="corner-marker" id="top-left"></div>
+            <div class="corner-marker" id="top-right"></div>
+            <div class="corner-marker" id="bottom-left"></div>
+            <div class="corner-marker" id="bottom-right"></div>
         </div>
     </div>
     
-    <!-- Controls -->
-    <div id="controls">
-        <button id="start-button">Start AR</button>
-        <button id="flip-button" style="display: none;">Flip Camera</button>
+    <div id="canvas-container">
+        <canvas id="fireworks-canvas"></canvas>
     </div>
     
-    <!-- Hidden AR scene (will be displayed after camera starts) -->
-    <div id="ar-container" style="display: none; width: 100%; height: 100%;">
-        <a-scene
-            embedded
-            arjs="sourceType: webcam; videoTextureWidth: 1280; videoTextureHeight: 960; detectionMode: mono_and_matrix; matrixCodeType: 3x3; debugUIEnabled: false;"
-            vr-mode-ui="enabled: false"
-            renderer="antialias: true; alpha: true; precision: mediump;"
-            id="ar-scene"
-        >
-            <!-- Custom marker detection indicator component -->
-            <script>
-                AFRAME.registerComponent('marker-detector', {
-                    init: function() {
-                        this.markerFound = false;
-                        
-                        this.el.addEventListener('markerFound', () => {
-                            if (!this.markerFound) {
-                                this.markerFound = true;
-                                document.getElementById('status-display').textContent = 'Marker detected!';
-                                document.getElementById('scanner-overlay').style.display = 'none';
-                                
-                                // Show success animation
-                                const successAnim = document.createElement('div');
-                                successAnim.className = 'success-animation';
-                                document.body.appendChild(successAnim);
-                                
-                                // Remove after animation completes
-                                setTimeout(() => {
-                                    document.body.removeChild(successAnim);
-                                }, 1500);
-                                
-                                // Start fireworks
-                                startFireworks();
-                            }
-                        });
-                        
-                        this.el.addEventListener('markerLost', () => {
-                            if (this.markerFound) {
-                                this.markerFound = false;
-                                document.getElementById('status-display').textContent = 'Marker lost. Point camera at image.';
-                                document.getElementById('scanner-overlay').style.display = 'flex';
-                            }
-                        });
-                    }
-                });
-            </script>
-            
-            <!-- Use your ZFT marker -->
-            <a-marker type="pattern" url="marker.zft" marker-detector>
-                <!-- Fireworks container -->
-                <a-entity id="fireworks-container" position="0 0 0"></a-entity>
-            </a-marker>
-            
-            <!-- Camera -->
-            <a-entity camera></a-entity>
-        </a-scene>
+    <div id="controls">
+        <button id="start-camera-btn">Start Camera</button>
+        <button id="start-fireworks-btn" class="hidden">Lock Fireworks</button>
+        <button id="stop-fireworks-btn" class="hidden">Stop Fireworks</button>
+        <button id="flip-camera-btn" class="hidden">Flip Camera</button>
     </div>
     
     <script>
-        // Elements
-        const statusDisplay = document.getElementById('status-display');
-        const startButton = document.getElementById('start-button');
-        const flipButton = document.getElementById('flip-button');
-        const arContainer = document.getElementById('ar-container');
-        const scannerOverlay = document.getElementById('scanner-overlay');
+        // DOM Elements
+        const cameraFeed = document.getElementById('camera-feed');
+        const startCameraBtn = document.getElementById('start-camera-btn');
+        const startFireworksBtn = document.getElementById('start-fireworks-btn');
+        const stopFireworksBtn = document.getElementById('stop-fireworks-btn');
+        const flipCameraBtn = document.getElementById('flip-camera-btn');
+        const frameOverlay = document.getElementById('frame-overlay');
+        const instructions = document.getElementById('instructions');
+        const statusText = document.getElementById('status-text');
+        const debugInfo = document.getElementById('debug-info');
+        const fireworksCanvas = document.getElementById('fireworks-canvas');
+        
+        // Canvas setup
+        const ctx = fireworksCanvas.getContext('2d');
+        
+        // Resize canvas to full window
+        function resizeCanvas() {
+            fireworksCanvas.width = window.innerWidth;
+            fireworksCanvas.height = window.innerHeight;
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
         
         // Camera settings
         let facingMode = 'environment'; // Start with rear camera
+        let activeStream = null;
         
-        // Initialize AR
-        function startAR() {
-            statusDisplay.textContent = 'Requesting camera permission...';
-            
-            // First request camera permission explicitly
-            navigator.mediaDevices.getUserMedia({ 
-                video: { 
+        // Start camera
+        function startCamera() {
+            const constraints = {
+                video: {
                     facingMode: facingMode,
                     width: { ideal: window.innerWidth },
                     height: { ideal: window.innerHeight }
-                } 
-            })
-            .then(function(stream) {
-                // Permission granted, stop test stream
-                stream.getTracks().forEach(track => track.stop());
-                
-                // Show AR scene and scanner
-                arContainer.style.display = 'block';
-                scannerOverlay.style.display = 'flex';
-                statusDisplay.textContent = 'Scanning for marker...';
-                
-                // Hide start button, show flip button
-                startButton.style.display = 'none';
-                flipButton.style.display = 'inline-block';
-                
-                // Fix camera view (may need to wait for AR.js to initialize)
-                setTimeout(fixCameraView, 500);
-            })
-            .catch(function(err) {
-                statusDisplay.textContent = 'Camera error: ' + err.message;
-                console.error('Camera error:', err);
-            });
-        }
-        
-        // Fix camera view to prevent cutoff
-        function fixCameraView() {
-            const video = document.querySelector('#arjs-video');
-            if (video) {
-                // Ensure video takes full width and height
-                video.style.width = '100%';
-                video.style.height = '100%';
-                video.style.objectFit = 'cover';
-                video.style.position = 'absolute';
-                video.style.top = '0';
-                video.style.left = '0';
-                video.style.zIndex = '-1';
-            } else {
-                // AR.js video might not be ready yet, try again
-                setTimeout(fixCameraView, 200);
-            }
+                }
+            };
+            
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    // Store active stream for later stopping
+                    if (activeStream) {
+                        activeStream.getTracks().forEach(track => track.stop());
+                    }
+                    activeStream = stream;
+                    
+                    // Connect stream to video element
+                    cameraFeed.srcObject = stream;
+                    
+                    // Update UI
+                    startCameraBtn.classList.add('hidden');
+                    startFireworksBtn.classList.remove('hidden');
+                    flipCameraBtn.classList.remove('hidden');
+                    statusText.textContent = 'Position your picture within the frame';
+                })
+                .catch(err => {
+                    console.error('Camera error:', err);
+                    statusText.textContent = 'Camera error: ' + err.message;
+                });
         }
         
         // Flip camera
         function flipCamera() {
             facingMode = facingMode === 'environment' ? 'user' : 'environment';
-            statusDisplay.textContent = 'Switching camera...';
-            
-            // Reload the page with a flag to use different camera
-            localStorage.setItem('camera-facing', facingMode);
-            window.location.reload();
+            startCamera(); // Restart camera with new facing mode
         }
         
-        // Fireworks effects
+        // Motion tracking variables
+        let initialOrientation = { alpha: 0, beta: 0, gamma: 0 };
+        let currentOrientation = { alpha: 0, beta: 0, gamma: 0 };
+        let isOrientationInitialized = false;
+        let frameRect = null;
+        let frameCenter = { x: 0, y: 0 };
+        
+        // Initialize motion tracking
+        function initializeMotionTracking() {
+            // Get frame position
+            frameRect = frameOverlay.getBoundingClientRect();
+            frameCenter = {
+                x: frameRect.left + frameRect.width / 2,
+                y: frameRect.top + frameRect.height / 2
+            };
+            
+            // Reset orientation tracking
+            isOrientationInitialized = false;
+            
+            // Request device orientation permissions and start tracking
+            if (typeof DeviceOrientationEvent !== 'undefined' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS 13+ permission request
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                            statusText.textContent = 'Motion tracking active. Keep device steady.';
+                        } else {
+                            statusText.textContent = 'Motion permission denied. Fireworks will not track.';
+                        }
+                    })
+                    .catch(err => {
+                        // Handle regular non-iOS devices
+                        window.addEventListener('deviceorientation', handleOrientation);
+                        statusText.textContent = 'Motion tracking active. Keep device steady.';
+                    });
+            } else {
+                // Non-iOS devices
+                window.addEventListener('deviceorientation', handleOrientation);
+                statusText.textContent = 'Motion tracking active. Keep device steady.';
+            }
+        }
+        
+        // Handle device orientation changes
+        function handleOrientation(event) {
+            // Store current orientation
+            currentOrientation = {
+                alpha: event.alpha || 0,
+                beta: event.beta || 0,
+                gamma: event.gamma || 0
+            };
+            
+            // Initialize reference orientation if not done yet
+            if (!isOrientationInitialized) {
+                initialOrientation = { ...currentOrientation };
+                isOrientationInitialized = true;
+            }
+            
+            // Update debug info
+            debugInfo.textContent = `
+                α: ${Math.round(currentOrientation.alpha)}° (${Math.round(initialOrientation.alpha)}°)
+                β: ${Math.round(currentOrientation.beta)}° (${Math.round(initialOrientation.beta)}°)
+                γ: ${Math.round(currentOrientation.gamma)}° (${Math.round(initialOrientation.gamma)}°)
+            `;
+        }
+        
+        // Calculate offset based on device motion
+        function calculateMotionOffset() {
+            if (!isOrientationInitialized) return { x: 0, y: 0, z: 0 };
+            
+            // Calculate difference from initial orientation
+            const alphaDiff = normalizeAngle(currentOrientation.alpha - initialOrientation.alpha);
+            const betaDiff = currentOrientation.beta - initialOrientation.beta;
+            const gammaDiff = currentOrientation.gamma - initialOrientation.gamma;
+            
+            // Convert angular differences to pixel offsets
+            // These multipliers determine how much movement affects the fireworks position
+            const motionSensitivity = 3; 
+            
+            return {
+                x: gammaDiff * motionSensitivity, // Left-right tilt
+                y: betaDiff * motionSensitivity,  // Forward-back tilt
+                z: alphaDiff * 0.1                // Rotation sensitivity is lower
+            };
+        }
+        
+        // Normalize angle to -180 to 180 range
+        function normalizeAngle(angle) {
+            return ((angle + 180) % 360) - 180;
+        }
+        
+        // 3D Fireworks classes
+        class Particle3D {
+            constructor(x, y, z, baseX, baseY, baseZ, color) {
+                // Current position
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                
+                // Base position (for motion compensation)
+                this.baseX = baseX;
+                this.baseY = baseY;
+                this.baseZ = baseZ;
+                
+                this.color = color;
+                this.radius = 1 + Math.random() * 2;
+                
+                // 3D velocity
+                const speed = 1 + Math.random() * 2;
+                const angle = Math.random() * Math.PI * 2;
+                const height = Math.random();
+                
+                this.velocity = {
+                    x: Math.cos(angle) * speed * (Math.random() * 2 - 1),
+                    y: Math.sin(angle) * speed * height - 2, // Mainly upward
+                    z: Math.cos(angle + Math.PI/2) * speed * (Math.random() * 2 - 1)
+                };
+                
+                this.gravity = 0.1;
+                this.drag = 0.98;
+                this.alpha = 1;
+                this.decay = 0.01 + Math.random() * 0.02;
+            }
+            
+            update() {
+                // Apply gravity to y velocity
+                this.velocity.y += this.gravity;
+                
+                // Apply drag to slow particles
+                this.velocity.x *= this.drag;
+                this.velocity.y *= this.drag;
+                this.velocity.z *= this.drag;
+                
+                // Update position based on velocity
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+                this.z += this.velocity.z;
+                
+                // Reduce alpha based on decay rate
+                this.alpha -= this.decay;
+                
+                // Return true if particle is still alive
+                return this.alpha > 0;
+            }
+            
+            // Adjust position based on device motion
+            adjustForMotion(offset) {
+                // Calculate adjusted position
+                const adjustedX = this.x - offset.x * (1 + this.z * 0.1);
+                const adjustedY = this.y - offset.y * (1 + this.z * 0.1);
+                
+                // Scale based on z-position (perspective)
+                const scale = 1 / (1 + this.z * 0.001);
+                const screenX = adjustedX * scale;
+                const screenY = adjustedY * scale;
+                
+                // Calculate size based on z-position
+                const sizeScale = scale * (1 + this.z * 0.01);
+                const displayRadius = Math.max(0.5, this.radius * sizeScale);
+                
+                return {
+                    x: screenX,
+                    y: screenY,
+                    radius: displayRadius
+                };
+            }
+            
+            draw(offset) {
+                // Get adjusted position and size
+                const display = this.adjustForMotion(offset);
+                
+                // Draw particle
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(display.x, display.y, display.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+        
+        class Firework3D {
+            constructor(x, y, z) {
+                this.baseX = x;
+                this.baseY = y;
+                this.baseZ = z;
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.particles = [];
+                
+                // Random color with more vibrant options
+                const colors = [
+                    '#ff0000', // Red
+                    '#ffaa00', // Orange
+                    '#ffff00', // Yellow
+                    '#00ff00', // Green
+                    '#00ffff', // Cyan
+                    '#0099ff', // Blue
+                    '#ff00ff', // Magenta
+                    '#ffffff'  // White
+                ];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                
+                // Create particles with base position for motion tracking
+                const particleCount = 50 + Math.floor(Math.random() * 50);
+                for (let i = 0; i < particleCount; i++) {
+                    this.particles.push(new Particle3D(x, y, z, x, y, z, color));
+                }
+            }
+            
+            update() {
+                // Update all particles and remove dead ones
+                this.particles = this.particles.filter(particle => particle.update());
+                
+                // Return true if any particles are still alive
+                return this.particles.length > 0;
+            }
+            
+            draw(offset) {
+                // Draw all particles with motion offset
+                this.particles.forEach(particle => particle.draw(offset));
+            }
+        }
+        
+        // Fireworks variables
+        let fireworks3D = [];
+        let animationId = null;
+        let isFireworksActive = false;
+        
+        // Start 3D locked fireworks
         function startFireworks() {
-            const container = document.getElementById('fireworks-container');
+            // Initialize motion tracking
+            initializeMotionTracking();
             
-            // Create initial firework
-            createFirework(container);
+            // Update UI
+            frameOverlay.classList.remove('pulse');
+            instructions.textContent = '';
+            startFireworksBtn.classList.add('hidden');
+            stopFireworksBtn.classList.remove('hidden');
+            statusText.textContent = 'Fireworks locked in 3D space';
             
-            // Create fireworks at intervals
-            setInterval(() => {
-                createFirework(container);
+            // Start fireworks
+            isFireworksActive = true;
+            
+            // Create fireworks at reflection area points
+            createReflectionAreaFireworks();
+            
+            // Animation loop
+            function animate() {
+                if (!isFireworksActive) return;
+                
+                // Clear canvas with semi-transparent black for trail effect
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                ctx.fillRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+                
+                // Calculate motion offset
+                const motionOffset = calculateMotionOffset();
+                
+                // Update and draw 3D fireworks with motion compensation
+                fireworks3D = fireworks3D.filter(firework => {
+                    firework.draw(motionOffset);
+                    return firework.update();
+                });
+                
+                // Request next frame
+                animationId = requestAnimationFrame(animate);
+            }
+            
+            // Start animation
+            animate();
+            
+            // Create new fireworks at intervals
+            const fireworksInterval = setInterval(() => {
+                if (isFireworksActive) {
+                    if (fireworks3D.length < 5) { // Limit active fireworks
+                        createReflectionAreaFireworks();
+                    }
+                } else {
+                    clearInterval(fireworksInterval);
+                }
             }, 1500);
         }
         
-        function createFirework(container) {
-            // Create firework entity
-            const firework = document.createElement('a-entity');
+        // Create fireworks in the reflection area
+        function createReflectionAreaFireworks() {
+            if (!frameRect) return;
             
-            // Position in reflection area (adjust these values to match your image)
-            const x = (Math.random() - 0.5) * 1;
-            const y = -0.2 - Math.random() * 0.1;
-            const z = (Math.random() - 0.5) * 0.5;
+            // Calculate a position in the lower half of the frame (reflection area)
+            const x = frameRect.left + Math.random() * frameRect.width;
+            const y = frameRect.top + frameRect.height * 0.6 + Math.random() * (frameRect.height * 0.3);
             
-            firework.setAttribute('position', `${x} ${y} ${z}`);
+            // Z coordinate creates depth (negative values are "into" the screen)
+            // Vary Z to create more interesting 3D effect
+            const z = -10 - Math.random() * 20;
             
-            // Random color
-            const colors = [
-                '#ff0000', '#ffaa00', '#ffff00', 
-                '#00ff00', '#00ffff', '#0099ff', '#ff00ff'
-            ];
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            
-            // Create particles
-            const particleCount = 20 + Math.floor(Math.random() * 30);
-            
-            for (let i = 0; i < particleCount; i++) {
-                createParticle(firework, color);
-            }
-            
-            // Add to container
-            container.appendChild(firework);
-            
-            // Remove after animation completes
-            setTimeout(() => {
-                if (firework.parentNode) {
-                    container.removeChild(firework);
-                }
-            }, 3000);
+            fireworks3D.push(new Firework3D(x, y, z));
         }
         
-        function createParticle(parent, color) {
-            // Create particle
-            const particle = document.createElement('a-sphere');
+        // Stop fireworks
+        function stopFireworks() {
+            isFireworksActive = false;
+            cancelAnimationFrame(animationId);
+            fireworks3D = [];
             
-            // Set properties
-            particle.setAttribute('radius', 0.02 + Math.random() * 0.01);
-            particle.setAttribute('color', color);
-            particle.setAttribute('material', 'shader: flat; transparent: true; opacity: 1.0');
+            // Remove motion tracking
+            window.removeEventListener('deviceorientation', handleOrientation);
             
-            // Initial position
-            const initPos = { 
-                x: (Math.random() - 0.5) * 0.05,
-                y: (Math.random() - 0.5) * 0.05,
-                z: (Math.random() - 0.5) * 0.05
-            };
-            particle.setAttribute('position', `${initPos.x} ${initPos.y} ${initPos.z}`);
+            // Clear canvas
+            ctx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
             
-            // Final position (explosion)
-            const angle = Math.random() * Math.PI * 2;
-            const height = Math.random();
-            const distance = 0.3 + Math.random() * 0.5;
-            
-            const finalPos = {
-                x: Math.cos(angle) * distance,
-                y: Math.sin(angle) * distance * height,
-                z: Math.sin(angle) * distance
-            };
-            
-            // Animation: position
-            const posAnim = document.createElement('a-animation');
-            posAnim.setAttribute('attribute', 'position');
-            posAnim.setAttribute('to', `${finalPos.x} ${finalPos.y} ${finalPos.z}`);
-            posAnim.setAttribute('dur', 1000 + Math.random() * 1000);
-            posAnim.setAttribute('easing', 'ease-out');
-            
-            // Animation: opacity
-            const opacityAnim = document.createElement('a-animation');
-            opacityAnim.setAttribute('attribute', 'material.opacity');
-            opacityAnim.setAttribute('from', '1');
-            opacityAnim.setAttribute('to', '0');
-            opacityAnim.setAttribute('dur', 1000 + Math.random() * 1000);
-            opacityAnim.setAttribute('easing', 'ease-in');
-            
-            // Add animations
-            particle.appendChild(posAnim);
-            particle.appendChild(opacityAnim);
-            
-            // Add to parent
-            parent.appendChild(particle);
+            // Update UI
+            stopFireworksBtn.classList.add('hidden');
+            startFireworksBtn.classList.remove('hidden');
+            frameOverlay.classList.add('pulse');
+            instructions.textContent = 'Position your framed picture within this box';
+            statusText.textContent = 'Fireworks stopped. Reposition image if needed';
         }
         
         // Event listeners
-        startButton.addEventListener('click', startAR);
-        flipButton.addEventListener('click', flipCamera);
+        startCameraBtn.addEventListener('click', startCamera);
+        startFireworksBtn.addEventListener('click', startFireworks);
+        stopFireworksBtn.addEventListener('click', stopFireworks);
+        flipCameraBtn.addEventListener('click', flipCamera);
         
-        // Check if we're reloading with a different camera setting
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedFacing = localStorage.getItem('camera-facing');
-            if (savedFacing) {
-                facingMode = savedFacing;
-                localStorage.removeItem('camera-facing');
-                startAR();
-            }
-        });
-        
-        // Fix for iOS Safari
-        window.addEventListener('touchstart', function() {}, false);
+        // iOS fix
+        document.addEventListener('touchstart', function() {}, false);
     </script>
 </body>
 </html>
