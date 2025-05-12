@@ -59,6 +59,13 @@
             align-items: center;
             color: white;
             text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        /* Frame overlay will transition to fully transparent when fireworks start */
+        #frame-overlay.transparent {
+            border-color: transparent;
+            box-shadow: none;
         }
         
         #instructions {
@@ -91,6 +98,7 @@
             border: 2px solid rgba(0, 255, 0, 0.8);
             background-color: transparent;
             z-index: 20;
+            transition: all 0.3s ease;
         }
         
         #top-left {
@@ -123,6 +131,11 @@
             border-bottom-right-radius: 10px;
             border-left: none;
             border-top: none;
+        }
+        
+        /* Hide corner markers when fireworks start */
+        #frame-overlay.transparent .corner-marker {
+            opacity: 0;
         }
         
         #controls {
@@ -184,27 +197,16 @@
             font-size: 14px;
             z-index: 30;
             text-align: center;
+            transition: opacity 0.5s ease;
         }
         
-        #debug-info {
-            position: fixed;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 8px 16px;
-            background-color: rgba(0, 0, 0, 0.6);
-            color: white;
-            border-radius: 20px;
-            font-size: 12px;
-            z-index: 30;
-            text-align: center;
-            display: none; /* Set to 'block' to show debug info */
+        #status-text.fade {
+            opacity: 0;
         }
     </style>
 </head>
 <body>
     <div id="status-text">Allow camera access to begin</div>
-    <div id="debug-info">Motion data will appear here</div>
     
     <div id="camera-container">
         <video id="camera-feed" autoplay playsinline></video>
@@ -241,7 +243,6 @@
         const frameOverlay = document.getElementById('frame-overlay');
         const instructions = document.getElementById('instructions');
         const statusText = document.getElementById('status-text');
-        const debugInfo = document.getElementById('debug-info');
         const fireworksCanvas = document.getElementById('fireworks-canvas');
         
         // Canvas setup
@@ -326,21 +327,26 @@
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener('deviceorientation', handleOrientation);
-                            statusText.textContent = 'Motion tracking active. Keep device steady.';
+                            statusText.textContent = 'Motion tracking active';
                         } else {
-                            statusText.textContent = 'Motion permission denied. Fireworks will not track.';
+                            statusText.textContent = 'Motion permission denied';
                         }
                     })
                     .catch(err => {
                         // Handle regular non-iOS devices
                         window.addEventListener('deviceorientation', handleOrientation);
-                        statusText.textContent = 'Motion tracking active. Keep device steady.';
+                        statusText.textContent = 'Motion tracking active';
                     });
             } else {
                 // Non-iOS devices
                 window.addEventListener('deviceorientation', handleOrientation);
-                statusText.textContent = 'Motion tracking active. Keep device steady.';
+                statusText.textContent = 'Motion tracking active';
             }
+            
+            // Fade out status text after a few seconds
+            setTimeout(() => {
+                statusText.classList.add('fade');
+            }, 3000);
         }
         
         // Handle device orientation changes
@@ -357,13 +363,6 @@
                 initialOrientation = { ...currentOrientation };
                 isOrientationInitialized = true;
             }
-            
-            // Update debug info
-            debugInfo.textContent = `
-                α: ${Math.round(currentOrientation.alpha)}° (${Math.round(initialOrientation.alpha)}°)
-                β: ${Math.round(currentOrientation.beta)}° (${Math.round(initialOrientation.beta)}°)
-                γ: ${Math.round(currentOrientation.gamma)}° (${Math.round(initialOrientation.gamma)}°)
-            `;
         }
         
         // Calculate offset based on device motion
@@ -391,7 +390,7 @@
             return ((angle + 180) % 360) - 180;
         }
         
-        // 3D Fireworks classes
+        // 3D Fireworks classes with motion trails
         class Particle3D {
             constructor(x, y, z, baseX, baseY, baseZ, color) {
                 // Current position
@@ -422,9 +421,26 @@
                 this.drag = 0.98;
                 this.alpha = 1;
                 this.decay = 0.01 + Math.random() * 0.02;
+                
+                // Store previous positions for trail effect
+                this.trail = [];
+                this.trailLength = 5 + Math.floor(Math.random() * 5); // Random trail length
             }
             
             update() {
+                // Store current position for trail
+                if (this.trail.length >= this.trailLength) {
+                    this.trail.pop(); // Remove oldest position
+                }
+                
+                // Add current position to beginning of trail
+                this.trail.unshift({
+                    x: this.x,
+                    y: this.y,
+                    z: this.z,
+                    alpha: this.alpha
+                });
+                
                 // Apply gravity to y velocity
                 this.velocity.y += this.gravity;
                 
@@ -467,11 +483,39 @@
                 };
             }
             
+            // Draw particle with trail
             draw(offset) {
-                // Get adjusted position and size
-                const display = this.adjustForMotion(offset);
+                // Draw trail first (back to front)
+                for (let i = this.trail.length - 1; i >= 0; i--) {
+                    const position = this.trail[i];
+                    const trailAlpha = position.alpha * 0.3 * (i / this.trail.length);
+                    
+                    // Calculate trail position
+                    const trailOffset = {
+                        x: position.x - offset.x * (1 + position.z * 0.1),
+                        y: position.y - offset.y * (1 + position.z * 0.1),
+                        z: position.z
+                    };
+                    
+                    // Scale based on z-position
+                    const scale = 1 / (1 + trailOffset.z * 0.001);
+                    const screenX = trailOffset.x * scale;
+                    const screenY = trailOffset.y * scale;
+                    
+                    // Calculate size based on z-position (trails get smaller)
+                    const sizeScale = scale * (1 + trailOffset.z * 0.01);
+                    const trailRadius = Math.max(0.1, this.radius * sizeScale * 0.7 * (i / this.trail.length));
+                    
+                    // Draw trail segment
+                    ctx.globalAlpha = trailAlpha;
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, trailRadius, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
                 
-                // Draw particle
+                // Draw current particle
+                const display = this.adjustForMotion(offset);
                 ctx.globalAlpha = this.alpha;
                 ctx.beginPath();
                 ctx.arc(display.x, display.y, display.radius, 0, Math.PI * 2);
@@ -534,8 +578,9 @@
             // Initialize motion tracking
             initializeMotionTracking();
             
-            // Update UI
+            // Update UI - make frame overlay transparent
             frameOverlay.classList.remove('pulse');
+            frameOverlay.classList.add('transparent');
             instructions.textContent = '';
             startFireworksBtn.classList.add('hidden');
             stopFireworksBtn.classList.remove('hidden');
@@ -551,9 +596,8 @@
             function animate() {
                 if (!isFireworksActive) return;
                 
-                // Clear canvas with semi-transparent black for trail effect
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-                ctx.fillRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+                // Clear canvas completely to maintain transparency
+                ctx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
                 
                 // Calculate motion offset
                 const motionOffset = calculateMotionOffset();
@@ -611,10 +655,12 @@
             ctx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
             
             // Update UI
+            frameOverlay.classList.remove('transparent');
             stopFireworksBtn.classList.add('hidden');
             startFireworksBtn.classList.remove('hidden');
             frameOverlay.classList.add('pulse');
             instructions.textContent = 'Position your framed picture within this box';
+            statusText.classList.remove('fade');
             statusText.textContent = 'Fireworks stopped. Reposition image if needed';
         }
         
