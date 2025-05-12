@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>3D-Locked Fireworks</title>
+    <title>Water Reflection Fireworks</title>
     <style>
         * {
             margin: 0;
@@ -49,8 +49,9 @@
             left: 50%;
             transform: translate(-50%, -50%);
             border: 3px dashed rgba(255, 255, 255, 0.7);
-            width: 80%;
-            height: 60%;
+            /* Square box with aspect ratio 1:1 */
+            width: 70vmin;
+            height: 70vmin;
             border-radius: 10px;
             box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.3);
             display: flex;
@@ -66,6 +67,23 @@
         #frame-overlay.transparent {
             border-color: transparent;
             box-shadow: none;
+        }
+        
+        /* Lower left quadrant indicator (will be hidden in final view) */
+        #water-area-indicator {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 50%;
+            height: 50%;
+            border: 2px dashed rgba(0, 150, 255, 0.5);
+            border-radius: 0 0 0 8px;
+            background-color: rgba(0, 100, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        #frame-overlay.transparent #water-area-indicator {
+            opacity: 0;
         }
         
         #instructions {
@@ -214,7 +232,8 @@
     
     <div id="overlay-container">
         <div id="frame-overlay" class="pulse">
-            <div id="instructions">Position your framed picture within this box</div>
+            <div id="instructions">Position your framed picture within this square</div>
+            <div id="water-area-indicator"></div>
             <div class="corner-marker" id="top-left"></div>
             <div class="corner-marker" id="top-right"></div>
             <div class="corner-marker" id="bottom-left"></div>
@@ -286,7 +305,7 @@
                     startCameraBtn.classList.add('hidden');
                     startFireworksBtn.classList.remove('hidden');
                     flipCameraBtn.classList.remove('hidden');
-                    statusText.textContent = 'Position your picture within the frame';
+                    statusText.textContent = 'Position your picture within the square';
                 })
                 .catch(err => {
                     console.error('Camera error:', err);
@@ -306,6 +325,7 @@
         let isOrientationInitialized = false;
         let frameRect = null;
         let frameCenter = { x: 0, y: 0 };
+        let waterAreaRect = null; // Keeps track of the water area boundaries
         
         // Initialize motion tracking
         function initializeMotionTracking() {
@@ -314,6 +334,16 @@
             frameCenter = {
                 x: frameRect.left + frameRect.width / 2,
                 y: frameRect.top + frameRect.height / 2
+            };
+            
+            // Calculate water area (lower left quadrant)
+            waterAreaRect = {
+                left: frameRect.left,
+                top: frameRect.top + frameRect.height / 2, // Middle height
+                width: frameRect.width / 2, // Half width
+                height: frameRect.height / 2, // Half height
+                right: frameRect.left + frameRect.width / 2,
+                bottom: frameRect.bottom
             };
             
             // Reset orientation tracking
@@ -390,6 +420,18 @@
             return ((angle + 180) % 360) - 180;
         }
         
+        // Check if a position is within the water area bounds
+        function isInWaterArea(x, y) {
+            if (!waterAreaRect) return false;
+            
+            return (
+                x >= waterAreaRect.left &&
+                x <= waterAreaRect.right &&
+                y >= waterAreaRect.top &&
+                y <= waterAreaRect.bottom
+            );
+        }
+        
         // 3D Fireworks classes with motion trails
         class Particle3D {
             constructor(x, y, z, baseX, baseY, baseZ, color) {
@@ -425,6 +467,9 @@
                 // Store previous positions for trail effect
                 this.trail = [];
                 this.trailLength = 5 + Math.floor(Math.random() * 5); // Random trail length
+                
+                // Boundary flags
+                this.reachedBoundary = false;
             }
             
             update() {
@@ -449,10 +494,40 @@
                 this.velocity.y *= this.drag;
                 this.velocity.z *= this.drag;
                 
-                // Update position based on velocity
-                this.x += this.velocity.x;
-                this.y += this.velocity.y;
-                this.z += this.velocity.z;
+                // Calculate next position
+                let nextX = this.x + this.velocity.x;
+                let nextY = this.y + this.velocity.y;
+                let nextZ = this.z + this.velocity.z;
+                
+                // Check if next position would be outside water area bounds
+                const display = this.adjustForMotion({x: 0, y: 0, z: 0}, nextX, nextY, nextZ);
+                
+                if (!isInWaterArea(display.x, display.y)) {
+                    // Reached boundary, reverse velocity with some dampening
+                    if (!this.reachedBoundary) {
+                        this.reachedBoundary = true;
+                        
+                        // Determine which boundary was hit and reverse appropriate velocity
+                        if (display.x < waterAreaRect.left || display.x > waterAreaRect.right) {
+                            this.velocity.x *= -0.5; // Reverse x velocity with dampening
+                        }
+                        
+                        if (display.y < waterAreaRect.top || display.y > waterAreaRect.bottom) {
+                            this.velocity.y *= -0.5; // Reverse y velocity with dampening
+                        }
+                        
+                        // Make sure particle stays within bounds
+                        nextX = this.x;
+                        nextY = this.y;
+                    }
+                } else {
+                    this.reachedBoundary = false;
+                }
+                
+                // Update position
+                this.x = nextX;
+                this.y = nextY;
+                this.z = nextZ;
                 
                 // Reduce alpha based on decay rate
                 this.alpha -= this.decay;
@@ -462,18 +537,18 @@
             }
             
             // Adjust position based on device motion
-            adjustForMotion(offset) {
+            adjustForMotion(offset, x = this.x, y = this.y, z = this.z) {
                 // Calculate adjusted position
-                const adjustedX = this.x - offset.x * (1 + this.z * 0.1);
-                const adjustedY = this.y - offset.y * (1 + this.z * 0.1);
+                const adjustedX = x - offset.x * (1 + z * 0.1);
+                const adjustedY = y - offset.y * (1 + z * 0.1);
                 
                 // Scale based on z-position (perspective)
-                const scale = 1 / (1 + this.z * 0.001);
+                const scale = 1 / (1 + z * 0.001);
                 const screenX = adjustedX * scale;
                 const screenY = adjustedY * scale;
                 
                 // Calculate size based on z-position
-                const sizeScale = scale * (1 + this.z * 0.01);
+                const sizeScale = scale * (1 + z * 0.01);
                 const displayRadius = Math.max(0.5, this.radius * sizeScale);
                 
                 return {
@@ -506,21 +581,28 @@
                     const sizeScale = scale * (1 + trailOffset.z * 0.01);
                     const trailRadius = Math.max(0.1, this.radius * sizeScale * 0.7 * (i / this.trail.length));
                     
-                    // Draw trail segment
-                    ctx.globalAlpha = trailAlpha;
-                    ctx.beginPath();
-                    ctx.arc(screenX, screenY, trailRadius, 0, Math.PI * 2);
-                    ctx.fillStyle = this.color;
-                    ctx.fill();
+                    // Only draw if within water area bounds
+                    if (isInWaterArea(screenX, screenY)) {
+                        // Draw trail segment
+                        ctx.globalAlpha = trailAlpha;
+                        ctx.beginPath();
+                        ctx.arc(screenX, screenY, trailRadius, 0, Math.PI * 2);
+                        ctx.fillStyle = this.color;
+                        ctx.fill();
+                    }
                 }
                 
                 // Draw current particle
                 const display = this.adjustForMotion(offset);
-                ctx.globalAlpha = this.alpha;
-                ctx.beginPath();
-                ctx.arc(display.x, display.y, display.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
+                
+                // Only draw if within water area bounds
+                if (isInWaterArea(display.x, display.y)) {
+                    ctx.globalAlpha = this.alpha;
+                    ctx.beginPath();
+                    ctx.arc(display.x, display.y, display.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
             }
         }
         
@@ -548,7 +630,8 @@
                 const color = colors[Math.floor(Math.random() * colors.length)];
                 
                 // Create particles with base position for motion tracking
-                const particleCount = 50 + Math.floor(Math.random() * 50);
+                // 5x more particles than before
+                const particleCount = 150 + Math.floor(Math.random() * 150);
                 for (let i = 0; i < particleCount; i++) {
                     this.particles.push(new Particle3D(x, y, z, x, y, z, color));
                 }
@@ -572,6 +655,7 @@
         let fireworks3D = [];
         let animationId = null;
         let isFireworksActive = false;
+        let fireworksInterval = null;
         
         // Start 3D locked fireworks
         function startFireworks() {
@@ -589,8 +673,10 @@
             // Start fireworks
             isFireworksActive = true;
             
-            // Create fireworks at reflection area points
-            createReflectionAreaFireworks();
+            // Create multiple initial fireworks
+            for (let i = 0; i < 5; i++) {
+                createWaterAreaFirework();
+            }
             
             // Animation loop
             function animate() {
@@ -615,25 +701,28 @@
             // Start animation
             animate();
             
-            // Create new fireworks at intervals
-            const fireworksInterval = setInterval(() => {
+            // Create new fireworks at more frequent intervals
+            fireworksInterval = setInterval(() => {
                 if (isFireworksActive) {
-                    if (fireworks3D.length < 5) { // Limit active fireworks
-                        createReflectionAreaFireworks();
+                    // Allow up to 25 active fireworks (5x more)
+                    if (fireworks3D.length < 25) {
+                        createWaterAreaFirework();
                     }
                 } else {
                     clearInterval(fireworksInterval);
                 }
-            }, 1500);
+            }, 300); // More frequent fireworks (300ms instead of 1500ms)
         }
         
-        // Create fireworks in the reflection area
-        function createReflectionAreaFireworks() {
-            if (!frameRect) return;
+        // Create fireworks specifically in the water area (lower left quadrant)
+        function createWaterAreaFirework() {
+            if (!waterAreaRect) return;
             
-            // Calculate a position in the lower half of the frame (reflection area)
-            const x = frameRect.left + Math.random() * frameRect.width;
-            const y = frameRect.top + frameRect.height * 0.6 + Math.random() * (frameRect.height * 0.3);
+            // Calculate a position in the water area (lower left quadrant)
+            const padding = 20; // Padding from edges to avoid boundary issues
+            
+            const x = waterAreaRect.left + padding + Math.random() * (waterAreaRect.width - padding * 2);
+            const y = waterAreaRect.top + padding + Math.random() * (waterAreaRect.height - padding * 2);
             
             // Z coordinate creates depth (negative values are "into" the screen)
             // Vary Z to create more interesting 3D effect
@@ -645,6 +734,10 @@
         // Stop fireworks
         function stopFireworks() {
             isFireworksActive = false;
+            if (fireworksInterval) {
+                clearInterval(fireworksInterval);
+                fireworksInterval = null;
+            }
             cancelAnimationFrame(animationId);
             fireworks3D = [];
             
@@ -659,7 +752,7 @@
             stopFireworksBtn.classList.add('hidden');
             startFireworksBtn.classList.remove('hidden');
             frameOverlay.classList.add('pulse');
-            instructions.textContent = 'Position your framed picture within this box';
+            instructions.textContent = 'Position your framed picture within this square';
             statusText.classList.remove('fade');
             statusText.textContent = 'Fireworks stopped. Reposition image if needed';
         }
