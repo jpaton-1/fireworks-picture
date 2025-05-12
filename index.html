@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindAR Fireworks Reflection</title>
+    <!-- MindAR and Three.js libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r132/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.0/dist/mindar-image.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.0/dist/mindar-image-three.prod.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading AR experience... please wait</div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loading = document.getElementById('loading');
+            
+            // Firework particle class
+            class FireworkParticle {
+                constructor(scene, position, color) {
+                    this.scene = scene;
+                    
+                    // Create geometry and material
+                    const geometry = new THREE.SphereGeometry(0.01 + Math.random() * 0.01, 6, 6);
+                    const material = new THREE.MeshBasicMaterial({
+                        color: color,
+                        transparent: true,
+                        opacity: 1.0
+                    });
+                    
+                    // Create mesh
+                    this.mesh = new THREE.Mesh(geometry, material);
+                    this.mesh.position.copy(position);
+                    
+                    // Add slight initial random position
+                    this.mesh.position.x += (Math.random() - 0.5) * 0.02;
+                    this.mesh.position.y += (Math.random() - 0.5) * 0.02;
+                    this.mesh.position.z += (Math.random() - 0.5) * 0.02;
+                    
+                    // Set velocity - explode outward in random direction
+                    const speed = 0.01 + Math.random() * 0.02;
+                    const angle = Math.random() * Math.PI * 2;
+                    const height = Math.random() * 0.5;
+                    
+                    this.velocity = new THREE.Vector3(
+                        Math.cos(angle) * speed,
+                        height * speed,
+                        Math.sin(angle) * speed
+                    );
+                    
+                    // Gravity
+                    this.gravity = new THREE.Vector3(0, -0.0001, 0);
+                    
+                    // Life properties
+                    this.life = 1.0;
+                    this.decay = 0.01 + Math.random() * 0.02;
+                    
+                    // Add to scene
+                    this.scene.add(this.mesh);
+                }
+                
+                update() {
+                    // Update position based on velocity
+                    this.mesh.position.add(this.velocity);
+                    
+                    // Apply gravity
+                    this.velocity.add(this.gravity);
+                    
+                    // Decrease life
+                    this.life -= this.decay;
+                    
+                    // Update opacity based on life
+                    this.mesh.material.opacity = this.life;
+                    
+                    // Return true if particle is still alive
+                    return this.life > 0;
+                }
+                
+                dispose() {
+                    this.scene.remove(this.mesh);
+                    this.mesh.geometry.dispose();
+                    this.mesh.material.dispose();
+                }
+            }
+            
+            // Firework class
+            class Firework {
+                constructor(scene, position) {
+                    this.scene = scene;
+                    this.position = position;
+                    this.particles = [];
+                    
+                    // Create particles
+                    const particleCount = 30 + Math.floor(Math.random() * 50);
+                    const color = this.getRandomFireworkColor();
+                    
+                    for (let i = 0; i < particleCount; i++) {
+                        this.particles.push(new FireworkParticle(scene, position, color));
+                    }
+                }
+                
+                update() {
+                    // Update all particles and remove dead ones
+                    this.particles = this.particles.filter(particle => {
+                        const alive = particle.update();
+                        if (!alive) {
+                            particle.dispose();
+                        }
+                        return alive;
+                    });
+                    
+                    // Return true if any particles are still alive
+                    return this.particles.length > 0;
+                }
+                
+                getRandomFireworkColor() {
+                    const colors = [
+                        0xff0000, // Red
+                        0xffaa00, // Orange
+                        0xffff00, // Yellow
+                        0x00ff00, // Green
+                        0x00ffff, // Cyan
+                        0x0099ff, // Blue
+                        0xff00ff  // Magenta
+                    ];
+                    return colors[Math.floor(Math.random() * colors.length)];
+                }
+            }
+            
+            const start = async () => {
+                // Initialize MindAR
+                const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+                    container: document.body,
+                    imageTargetSrc: 'targets.mind', // You'll generate this file with MindAR Studio
+                    maxTrack: 1,
+                    uiLoading: false,
+                    uiScanning: true,
+                    uiError: true,
+                });
+                
+                const { renderer, scene, camera } = mindarThree;
+                
+                // Create anchor
+                const anchor = mindarThree.addAnchor(0);
+                
+                // Create a container for our fireworks
+                const fireworksContainer = new THREE.Group();
+                anchor.group.add(fireworksContainer);
+                
+                // Position the container to align with the reflection area in your image
+                // You'll need to adjust these values based on your specific image
+                fireworksContainer.position.set(0, -0.2, 0);
+                
+                // Store active fireworks
+                const fireworks = [];
+                
+                // Create a new firework at random intervals
+                const createFirework = () => {
+                    // Position is constrained to the "reflection" area
+                    const x = (Math.random() - 0.5) * 0.8;
+                    const y = 0;
+                    const z = (Math.random() - 0.5) * 0.3;
+                    
+                    const position = new THREE.Vector3(x, y, z);
+                    fireworks.push(new Firework(fireworksContainer, position));
+                    
+                    // Schedule next firework
+                    setTimeout(createFirework, 800 + Math.random() * 1500);
+                };
+                
+                // Start AR experience
+                await mindarThree.start();
+                loading.style.display = 'none';
+                
+                // Start creating fireworks after a short delay
+                setTimeout(createFirework, 1000);
+                
+                // Update loop
+                renderer.setAnimationLoop(() => {
+                    // Update all fireworks and remove dead ones
+                    for (let i = fireworks.length - 1; i >= 0; i--) {
+                        const alive = fireworks[i].update();
+                        if (!alive) {
+                            fireworks.splice(i, 1);
+                        }
+                    }
+                    
+                    // Render the scene
+                    renderer.render(scene, camera);
+                });
+            };
+            
+            start();
+        });
+    </script>
+</body>
+</html>
