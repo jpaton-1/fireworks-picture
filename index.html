@@ -3,226 +3,259 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MindAR Fireworks Reflection</title>
+    <title>ZFT Fireworks AR Experience</title>
+    
+    <!-- AR.js with ZFT support -->
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    
     <style>
         body {
             margin: 0;
             overflow: hidden;
         }
-        #loading {
+        .arjs-loader {
+            height: 100%;
+            width: 100%;
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
             display: flex;
             justify-content: center;
             align-items: center;
-            background-color: rgba(0, 0, 0, 0.8);
-            z-index: 9999;
+        }
+        .arjs-loader div {
+            text-align: center;
+            font-size: 1.25em;
             color: white;
-            font-family: Arial, sans-serif;
+            padding: 2em;
+        }
+        #ui-container {
+            position: fixed;
+            bottom: 10px;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+        }
+        #ui-container button {
+            margin: 0 10px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.7);
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
         }
     </style>
-</head>
-<body>
-    <div id="loading">Loading AR experience... please wait</div>
     
-    <!-- The canvas for rendering -->
-    <div id="container"></div>
-    
-    <!-- Load scripts as modules -->
-    <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.module.js';
-        import { MindARThree } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.0/dist/mindar-image-three.prod.js';
+    <script>
+        window.addEventListener('load', function() {
+            document.getElementById('start-button').addEventListener('click', function() {
+                document.querySelector('.arjs-loader').style.display = 'none';
+                
+                // Start the experience
+                initAR();
+            });
+        });
         
-        const loading = document.getElementById('loading');
-        
-        // Firework particle class
-        class FireworkParticle {
-            constructor(scene, position, color) {
-                this.scene = scene;
-                
-                // Create geometry and material
-                const geometry = new THREE.SphereGeometry(0.01 + Math.random() * 0.01, 6, 6);
-                const material = new THREE.MeshBasicMaterial({
-                    color: color,
-                    transparent: true,
-                    opacity: 1.0
-                });
-                
-                // Create mesh
-                this.mesh = new THREE.Mesh(geometry, material);
-                this.mesh.position.copy(position);
-                
-                // Add slight initial random position
-                this.mesh.position.x += (Math.random() - 0.5) * 0.02;
-                this.mesh.position.y += (Math.random() - 0.5) * 0.02;
-                this.mesh.position.z += (Math.random() - 0.5) * 0.02;
-                
-                // Set velocity - explode outward in random direction
-                const speed = 0.01 + Math.random() * 0.02;
-                const angle = Math.random() * Math.PI * 2;
-                const height = Math.random() * 0.5;
-                
-                this.velocity = new THREE.Vector3(
-                    Math.cos(angle) * speed,
-                    height * speed,
-                    Math.sin(angle) * speed
-                );
-                
-                // Gravity
-                this.gravity = new THREE.Vector3(0, -0.0001, 0);
-                
-                // Life properties
-                this.life = 1.0;
-                this.decay = 0.01 + Math.random() * 0.02;
-                
-                // Add to scene
-                this.scene.add(this.mesh);
-            }
+        function initAR() {
+            // Create A-Frame scene dynamically
+            const sceneEl = document.createElement('a-scene');
+            sceneEl.setAttribute('embedded', '');
+            sceneEl.setAttribute('arjs', 'sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix;');
             
-            update() {
-                // Update position based on velocity
-                this.mesh.position.add(this.velocity);
-                
-                // Apply gravity
-                this.velocity.add(this.gravity);
-                
-                // Decrease life
-                this.life -= this.decay;
-                
-                // Update opacity based on life
-                this.mesh.material.opacity = this.life;
-                
-                // Return true if particle is still alive
-                return this.life > 0;
-            }
+            // Create marker
+            const markerEl = document.createElement('a-marker');
+            markerEl.setAttribute('type', 'pattern');
+            markerEl.setAttribute('url', 'marker.zft'); // Use your ZFT file name here
+            markerEl.setAttribute('emitevents', 'true');
+            markerEl.setAttribute('smooth', 'true');
+            markerEl.setAttribute('smoothCount', '5');
             
-            dispose() {
-                this.scene.remove(this.mesh);
-                this.mesh.geometry.dispose();
-                this.mesh.material.dispose();
-            }
+            // Create container for fireworks
+            const fireworksContainer = document.createElement('a-entity');
+            fireworksContainer.setAttribute('id', 'fireworks-container');
+            fireworksContainer.setAttribute('position', '0 0 0');
+            markerEl.appendChild(fireworksContainer);
+            
+            // Add camera
+            const cameraEl = document.createElement('a-entity');
+            cameraEl.setAttribute('camera', '');
+            
+            // Add to scene
+            sceneEl.appendChild(markerEl);
+            sceneEl.appendChild(cameraEl);
+            
+            // Add to document
+            document.body.appendChild(sceneEl);
+            
+            // Start generating fireworks when marker is detected
+            markerEl.addEventListener('markerFound', function() {
+                console.log('Marker found!');
+                startFireworks(fireworksContainer);
+            });
+            
+            markerEl.addEventListener('markerLost', function() {
+                console.log('Marker lost!');
+                stopFireworks();
+            });
+            
+            // Add UI
+            const uiContainer = document.createElement('div');
+            uiContainer.setAttribute('id', 'ui-container');
+            
+            const toggleBtn = document.createElement('button');
+            toggleBtn.textContent = 'Pause Fireworks';
+            toggleBtn.addEventListener('click', function() {
+                toggleFireworks();
+                toggleBtn.textContent = fireworksEnabled ? 'Pause Fireworks' : 'Resume Fireworks';
+            });
+            
+            uiContainer.appendChild(toggleBtn);
+            document.body.appendChild(uiContainer);
         }
         
-        // Firework class
-        class Firework {
-            constructor(scene, position) {
-                this.scene = scene;
-                this.position = position;
-                this.particles = [];
-                
-                // Create particles
-                const particleCount = 30 + Math.floor(Math.random() * 50);
-                const color = this.getRandomFireworkColor();
-                
-                for (let i = 0; i < particleCount; i++) {
-                    this.particles.push(new FireworkParticle(scene, position, color));
+        // Fireworks variables
+        let fireworksEnabled = true;
+        let fireworksInterval = null;
+        let activeFireworks = [];
+        
+        function startFireworks(container) {
+            if (fireworksInterval) return;
+            
+            // Generate a new firework every 1-2 seconds
+            fireworksInterval = setInterval(() => {
+                if (!fireworksEnabled) return;
+                createFirework(container);
+            }, 1000 + Math.random() * 1000);
+            
+            // Create initial firework
+            createFirework(container);
+        }
+        
+        function stopFireworks() {
+            if (fireworksInterval) {
+                clearInterval(fireworksInterval);
+                fireworksInterval = null;
+            }
+            
+            // Remove active fireworks
+            activeFireworks.forEach(firework => {
+                if (firework.parentNode) {
+                    firework.parentNode.removeChild(firework);
                 }
-            }
-            
-            update() {
-                // Update all particles and remove dead ones
-                this.particles = this.particles.filter(particle => {
-                    const alive = particle.update();
-                    if (!alive) {
-                        particle.dispose();
-                    }
-                    return alive;
-                });
-                
-                // Return true if any particles are still alive
-                return this.particles.length > 0;
-            }
-            
-            getRandomFireworkColor() {
-                const colors = [
-                    0xff0000, // Red
-                    0xffaa00, // Orange
-                    0xffff00, // Yellow
-                    0x00ff00, // Green
-                    0x00ffff, // Cyan
-                    0x0099ff, // Blue
-                    0xff00ff  // Magenta
-                ];
-                return colors[Math.floor(Math.random() * colors.length)];
-            }
+            });
+            activeFireworks = [];
         }
         
-        const start = async () => {
-            try {
-                // Initialize MindAR
-                const mindarThree = new MindARThree({
-                    container: document.getElementById('container'),
-                    imageTargetSrc: 'targets.mind', // You'll generate this file with MindAR Studio
-                    maxTrack: 1,
-                    uiLoading: false,
-                    uiScanning: true,
-                    uiError: true,
-                });
-                
-                const { renderer, scene, camera } = mindarThree;
-                
-                // Create anchor
-                const anchor = mindarThree.addAnchor(0);
-                
-                // Create a container for our fireworks
-                const fireworksContainer = new THREE.Group();
-                anchor.group.add(fireworksContainer);
-                
-                // Position the container to align with the reflection area in your image
-                // You'll need to adjust these values based on your specific image
-                fireworksContainer.position.set(0, -0.2, 0);
-                
-                // Store active fireworks
-                const fireworks = [];
-                
-                // Create a new firework at random intervals
-                const createFirework = () => {
-                    // Position is constrained to the "reflection" area
-                    const x = (Math.random() - 0.5) * 0.8;
-                    const y = 0;
-                    const z = (Math.random() - 0.5) * 0.3;
-                    
-                    const position = new THREE.Vector3(x, y, z);
-                    fireworks.push(new Firework(fireworksContainer, position));
-                    
-                    // Schedule next firework
-                    setTimeout(createFirework, 800 + Math.random() * 1500);
-                };
-                
-                // Start AR experience
-                await mindarThree.start();
-                loading.style.display = 'none';
-                
-                // Start creating fireworks after a short delay
-                setTimeout(createFirework, 1000);
-                
-                // Update loop
-                renderer.setAnimationLoop(() => {
-                    // Update all fireworks and remove dead ones
-                    for (let i = fireworks.length - 1; i >= 0; i--) {
-                        const alive = fireworks[i].update();
-                        if (!alive) {
-                            fireworks.splice(i, 1);
-                        }
-                    }
-                    
-                    // Render the scene
-                    renderer.render(scene, camera);
-                });
-            } catch (error) {
-                console.error('Error starting AR:', error);
-                loading.innerHTML = `Error: ${error.message}<br>Please try a different browser or device.`;
-            }
-        };
+        function toggleFireworks() {
+            fireworksEnabled = !fireworksEnabled;
+        }
         
-        // Start when the page is loaded
-        document.addEventListener('DOMContentLoaded', start);
-        if (document.readyState === 'interactive' || document.readyState === 'complete') {
-            start();
+        function createFirework(container) {
+            // Create firework entity
+            const firework = document.createElement('a-entity');
+            
+            // Position in reflection area (adjust these values to match your image)
+            const x = (Math.random() - 0.5) * 0.8;  // Width range
+            const y = -0.2 - Math.random() * 0.1;   // Height in reflection area
+            const z = (Math.random() - 0.5) * 0.3;  // Depth range
+            
+            firework.setAttribute('position', `${x} ${y} ${z}`);
+            
+            // Random firework color
+            const colors = [
+                '#ff0000', // Red
+                '#ffaa00', // Orange
+                '#ffff00', // Yellow
+                '#00ff00', // Green
+                '#00ffff', // Cyan
+                '#0099ff', // Blue
+                '#ff00ff'  // Magenta
+            ];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            // Add particles
+            const particleCount = 30 + Math.floor(Math.random() * 30);
+            
+            for (let i = 0; i < particleCount; i++) {
+                createParticle(firework, color);
+            }
+            
+            // Add to container
+            container.appendChild(firework);
+            activeFireworks.push(firework);
+            
+            // Remove after animation completes
+            setTimeout(() => {
+                if (firework.parentNode) {
+                    firework.parentNode.removeChild(firework);
+                    activeFireworks = activeFireworks.filter(f => f !== firework);
+                }
+            }, 3000);
+        }
+        
+        function createParticle(parent, color) {
+            // Create particle
+            const particle = document.createElement('a-sphere');
+            
+            // Set properties
+            particle.setAttribute('radius', 0.01 + Math.random() * 0.01);
+            particle.setAttribute('color', color);
+            particle.setAttribute('material', 'shader: flat; transparent: true; opacity: 1.0');
+            
+            // Initial position (slight variation)
+            const initX = (Math.random() - 0.5) * 0.05;
+            const initY = (Math.random() - 0.5) * 0.05;
+            const initZ = (Math.random() - 0.5) * 0.05;
+            particle.setAttribute('position', `${initX} ${initY} ${initZ}`);
+            
+            // Calculate explosion direction
+            const angle = Math.random() * Math.PI * 2;
+            const height = Math.random() * 0.8;
+            const distance = 0.3 + Math.random() * 0.5;
+            
+            const finalX = Math.cos(angle) * distance;
+            const finalY = Math.sin(angle) * distance * height;
+            const finalZ = Math.sin(angle) * distance;
+            
+            // Position animation
+            const posAnim = document.createElement('a-animation');
+            posAnim.setAttribute('attribute', 'position');
+            posAnim.setAttribute('to', `${finalX} ${finalY} ${finalZ}`);
+            posAnim.setAttribute('dur', 1000 + Math.random() * 1000);
+            posAnim.setAttribute('easing', 'ease-out');
+            
+            // Opacity animation
+            const opacityAnim = document.createElement('a-animation');
+            opacityAnim.setAttribute('attribute', 'material.opacity');
+            opacityAnim.setAttribute('from', '1');
+            opacityAnim.setAttribute('to', '0');
+            opacityAnim.setAttribute('dur', 1000 + Math.random() * 1000);
+            opacityAnim.setAttribute('easing', 'ease-in');
+            
+            // Add animations to particle
+            particle.appendChild(posAnim);
+            particle.appendChild(opacityAnim);
+            
+            // Add to parent
+            parent.appendChild(particle);
         }
     </script>
+</head>
+<body>
+    <div class="arjs-loader">
+        <div>
+            <h2>Fireworks AR Experience</h2>
+            <p>This app will create virtual fireworks in the reflection area of your framed photo.</p>
+            <p>Point your camera at the framed artwork once the experience starts.</p>
+            <button id="start-button" style="padding: 10px 20px; font-size: 16px; margin-top: 20px;">Start Experience</button>
+        </div>
+    </div>
+    
+    <!-- A-Frame scene will be created dynamically in JavaScript -->
 </body>
 </html>
